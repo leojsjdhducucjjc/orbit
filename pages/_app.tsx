@@ -9,18 +9,7 @@ import { RecoilRoot, useRecoilState, useRecoilValue } from "recoil";
 import type { pageWithLayout } from "@/layoutTypes";
 import { useEffect, useState, useRef } from "react";
 import Head from "next/head";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  PointElement,
-  LineElement,
-} from "chart.js";
-import AuthProvider from "./AuthProvider";
+import AuthProvider from "@/components/AuthProvider";
 import { loginState } from "@/state";
 import { getRGBFromTailwindColor, DEFAULT_THEME_RGB } from "@/utils/themeColor";
 import LoadingScreen from "@/components/loading";
@@ -35,17 +24,6 @@ const POSTHOG_HOST =
 type AppPropsWithLayout = AppProps & {
   Component: pageWithLayout;
 };
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  PointElement,
-  LineElement,
-);
 
 function ColorThemeHandler() {
   const [workspace] = useRecoilState(workspacestate);
@@ -111,7 +89,7 @@ function MyApp({ Component, pageProps }: AppPropsWithLayout) {
 
   useEffect(() => {
     if (!loading) {
-      const t = setTimeout(() => setShowLoader(false), 1200);
+      const t = setTimeout(() => setShowLoader(false), 180);
       return () => clearTimeout(t);
     }
   }, [loading]);

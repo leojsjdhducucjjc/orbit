@@ -15,13 +15,7 @@ import { HelpProvider, HelpFloatingButton } from "@/components/HelpFloatingButto
 const workspace: LayoutProps = ({ children }) => {
 	const [workspace, setWorkspace] = useRecoilState(workspacestate);
 	const router = useRouter();
-	const [loading, setLoading] = useState(false);
 	const [isCollapsed, setIsCollapsed] = useState(false);
-
-	useEffect(() => {
-		router.events.on("routeChangeStart", () => setLoading(true));
-		router.events.on("routeChangeComplete", () => setLoading(false));
-	}, [router.events]);
 
 	useEffect(() => {
 		async function getworkspace() {
