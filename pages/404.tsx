@@ -1,9 +1,10 @@
 import Head from "next/head";
-import Router from "next/router";
+import { useRouter } from "next/router";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
 export default function Error() {
+  const router = useRouter();
   return (
     <>
       <Head>
@@ -43,7 +44,7 @@ export default function Error() {
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => Router.push('/')}
+                  onClick={() => router.push('/')}
                   className="inline-flex items-center justify-center px-5 py-2 rounded-lg bg-[#ff0099] text-white font-medium shadow-sm hover:brightness-105 transition"
                   aria-label="Return to home"
                 >
@@ -53,7 +54,7 @@ export default function Error() {
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => Router.back()}
+                  onClick={() => router.back()}
                   className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-zinc-800 text-zinc-200 border border-zinc-700 hover:bg-zinc-800/90 transition"
                   aria-label="Go back"
                 >

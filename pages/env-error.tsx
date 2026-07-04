@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import Router from "next/router";
+import { useRouter } from "next/router";
 import { IconKeyOff } from "@tabler/icons-react";
 
 export default function DatabaseErrorPage() {
+  const router = useRouter();
   const [missingvars, setMissingVars] = useState<string[]>([]);
 
   useEffect(() => {
@@ -11,7 +12,7 @@ export default function DatabaseErrorPage() {
         .then((res) => res.json())
         .then((data) => {
           if (data.missing.length === 0) {
-            Router.replace("/");
+            router.replace("/");
           } else {
             setMissingVars(data.missing);
           }
@@ -19,7 +20,7 @@ export default function DatabaseErrorPage() {
     } catch (error) {
       console.error("Error fetching environment variables:", error);
     }
-  }, []);
+  }, [router]);
 
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-white dark:bg-zinc-900 text-center px-4">

@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { loginState } from "@/state";
 import { useRecoilState } from "recoil";
 import { useForm, FormProvider } from "react-hook-form";
-import Router from "next/router";
+import { useRouter } from "next/router";
 import Slider from "@/components/slider";
 import Input from "@/components/input";
 import axios from "axios";
@@ -17,6 +17,7 @@ type FormData = {
 };
 
 const Login: NextPage = () => {
+  const router = useRouter();
   const [selectedColor, setSelectedColor] = useState("bg-orbit");
   const [login, setLogin] = useRecoilState(loginState);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +60,7 @@ const Login: NextPage = () => {
           ...request?.data.user,
           isOwner: true
         }));
-        Router.push("/");
+        router.push("/");
       }
     } catch (e: any) {
       if (e?.response?.status === 404) {
@@ -83,8 +84,8 @@ const Login: NextPage = () => {
 
       // Add a small delay before redirecting
       setTimeout(() => {
-        Router.push("/");
-        Router.reload();
+        router.push("/");
+        router.reload();
       }, 1000);
     }
   }

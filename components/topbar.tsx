@@ -3,7 +3,7 @@ import { Dialog, Transition } from "@headlessui/react";
 import { loginState } from "@/state";
 import { useRecoilState } from "recoil";
 import { Menu } from "@headlessui/react";
-import Router, { useRouter } from "next/router";
+import { useRouter } from "next/router";
 import { useTheme } from "next-themes";
 import {
   IconLogout,
@@ -148,18 +148,18 @@ const Topbar: NextPage = () => {
   }
 
   useEffect(() => {
-    if (!Router.isReady || errorToastShown.current) return;
-    const { action, ...rest } = Router.query;
+    if (!router.isReady || errorToastShown.current) return;
+    const { action, ...rest } = router.query;
     if (action) {
       toast[action === "linked" ? "success" : "error"](
         action === "linked" ? "Discord linked!" : "Error signing in.",
       );
       errorToastShown.current = true;
-      Router.replace({ pathname: Router.pathname, query: rest }, undefined, {
+      router.replace({ pathname: router.pathname, query: rest }, undefined, {
         shallow: true,
       });
     }
-  }, [Router.isReady, Router.query]);
+  }, [router]);
 
   const initials =
     login?.displayname

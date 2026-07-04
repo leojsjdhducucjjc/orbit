@@ -1,15 +1,16 @@
 import { useEffect } from "react";
-import Router from "next/router";
+import { useRouter } from "next/router";
 import { IconDatabaseExclamation } from "@tabler/icons-react";
 
 export default function DatabaseErrorPage() {
+  const router = useRouter();
   const isDbConfigured = process.env.NEXT_PUBLIC_DATABASE_CHECK === "true";
 
   useEffect(() => {
     if (isDbConfigured) {
-      Router.replace("/"); // Redirect back to homepage
+      router.replace("/"); // Redirect back to homepage
     }
-  }, [isDbConfigured]);
+  }, [isDbConfigured, router]);
 
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-white dark:bg-zinc-900 text-center px-4">

@@ -12,7 +12,6 @@ import Head from "next/head";
 import AuthProvider from "@/components/AuthProvider";
 import { loginState } from "@/state";
 import { getRGBFromTailwindColor, DEFAULT_THEME_RGB } from "@/utils/themeColor";
-import LoadingScreen from "@/components/loading";
 import { Toaster } from "react-hot-toast";
 import { ThemeProvider, useTheme } from "next-themes";
 
@@ -67,8 +66,6 @@ function ConsoleBanner() {
 }
 
 function MyApp({ Component, pageProps }: AppPropsWithLayout) {
-  const [loading, setLoading] = useState(true);
-  const [showLoader, setShowLoader] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
   const Layout =
@@ -87,13 +84,6 @@ function MyApp({ Component, pageProps }: AppPropsWithLayout) {
     return () => media.removeEventListener("change", update);
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      const t = setTimeout(() => setShowLoader(false), 180);
-      return () => clearTimeout(t);
-    }
-  }, [loading]);
-
   return (
     <RecoilRoot>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -106,20 +96,16 @@ function MyApp({ Component, pageProps }: AppPropsWithLayout) {
         </Head>
         <ConsoleBanner />
 
-        <AuthProvider loading={loading} setLoading={setLoading} />
+        <AuthProvider />
         <Initializer />
         <ColorThemeHandler />
 
-        {showLoader && <LoadingScreen done={!loading} />}
-
-        {!showLoader && (
-          <Layout>
-            <div className="pb-8 sm:pb-0">
-              <Toaster position={isMobile ? "top-center" : "bottom-center"} />
-              <Component {...pageProps} />
-            </div>
-          </Layout>
-        )}
+        <Layout>
+          <div className="pb-8 sm:pb-0">
+            <Toaster position={isMobile ? "top-center" : "bottom-center"} />
+            <Component {...pageProps} />
+          </div>
+        </Layout>
       </ThemeProvider>
     </RecoilRoot>
   );

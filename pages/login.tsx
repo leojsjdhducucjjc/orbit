@@ -4,7 +4,7 @@ import { useForm, FormProvider, SubmitHandler } from "react-hook-form";
 import React, { useEffect, useState, useRef } from "react";
 import { useRecoilState } from "recoil";
 import { loginState } from "@/state";
-import Router from "next/router";
+import { useRouter } from "next/router";
 import axios from "axios";
 import Input from "@/components/input";
 import Link from "next/link";
@@ -121,6 +121,7 @@ function getAvatarBgColor(displayName: string): string {
 
 const Login: NextPage = () => {
   const [login, setLogin] = useRecoilState(loginState);
+  const router = useRouter();
   const { isAvailable: isRobloxOAuth } = RobloxOAuthAvailable();
   const { oauthOnly, isAvailable: isOAuthAvailable } = OAuthAvailable();
   const { isAvailable: isDiscordOAuth } = DiscordOAuthAvailable();
@@ -190,7 +191,7 @@ const Login: NextPage = () => {
       try {
         const userInfo = await axios.get("/api/@me");
         if (isMounted && userInfo.status === 200) {
-          Router.push("/");
+          router.push("/");
         }
       } catch (error) {
         console.log("User not authenticated");
@@ -304,7 +305,7 @@ const Login: NextPage = () => {
       });
       const { data: res } = req;
       setLogin({ ...res.user, workspaces: res.workspaces });
-      Router.push("/");
+      router.push("/");
     } catch {
     } finally {
       setLoading(false);
@@ -352,7 +353,7 @@ const Login: NextPage = () => {
         code: verificationCode,
         userid: signupUserid,
       });
-      if (data.success) Router.push("/");
+      if (data.success) router.push("/");
       else setVerificationError("Verification failed. Please try again.");
     } catch (e: any) {
       setVerificationError(
@@ -364,8 +365,8 @@ const Login: NextPage = () => {
   };
 
   useEffect(() => {
-    if (!Router.isReady || errorToastShown.current) return;
-    const { error, action, ...rest } = Router.query;
+    if (!router.isReady || errorToastShown.current) return;
+    const { error, action, ...rest } = router.query;
     if (error) {
       if (error === "discord-not-linked")
         toast.error("This account isn't linked to any Orbit account.");
@@ -381,11 +382,11 @@ const Login: NextPage = () => {
         toast.error("This domain is not allowed to sign in.");
       else toast.error("There was an error while logging in.");
       errorToastShown.current = true;
-      Router.replace({ pathname: Router.pathname, query: rest }, undefined, {
+      router.replace({ pathname: router.pathname, query: rest }, undefined, {
         shallow: true,
       });
     }
-  }, [Router.isReady, Router.query]);
+  }, [router]);
 
   const OAuthButtons = ({ className }: { className?: string }) => (
     <div className={`flex flex-col gap-2.5 ${className ?? ""}`}>

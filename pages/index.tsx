@@ -3,7 +3,7 @@
 import type { NextPage } from "next";
 import Head from "next/head";
 import Topbar from "@/components/topbar";
-import Router, { useRouter } from "next/router";
+import { useRouter } from "next/router";
 import { loginState, workspaceinfo } from "@/state";
 import { Transition, Dialog } from "@headlessui/react";
 import { useState, useEffect, Fragment, useRef, useCallback } from "react";

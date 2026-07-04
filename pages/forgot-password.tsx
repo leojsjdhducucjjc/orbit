@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import axios from "axios";
 import Link from "next/link";
-import Router from "next/router";
+import { useRouter } from "next/router";
 import Input from "@/components/input";
 import Button from "@/components/button";
 import { Dialog } from "@headlessui/react";
@@ -33,6 +33,7 @@ function getAvatarBgColor(displayName: string): string {
 }
 
 const ForgotPassword: NextPage = () => {
+	const router = useRouter();
 	const [selectedSlide, setSelectedSlide] = useState(0);
 	const [code, setCode] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
@@ -78,7 +79,7 @@ const ForgotPassword: NextPage = () => {
 				password: passwordForm.getValues("password"),
         userId,
 			});
-			Router.push("/");
+			router.push("/");
 		} catch (e: any) {
 			const msg = e?.response?.data?.error ?? "Verification failed";
 			setError(msg);

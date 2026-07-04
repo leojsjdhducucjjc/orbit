@@ -6,21 +6,15 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useSetRecoilState } from "recoil";
 
-export default function AuthProvider({
-  setLoading,
-}: {
-  loading: boolean;
-  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
-}) {
+export default function AuthProvider() {
   const setLogin = useSetRecoilState(loginState);
-  const Router = useRouter();
+  const router = useRouter();
 
   useEffect(() => {
-    const path = Router.pathname;
+    const path = router.pathname;
     const publicPath =
       path === "/login" || path === "/welcome" || path === "/forgot-password";
     if (publicPath) {
-      setLoading(false);
       return;
     }
 
@@ -31,21 +25,20 @@ export default function AuthProvider({
       } catch (err: any) {
         const error = err.response?.data?.error;
         if (error === "Workspace not setup") {
-          Router.push("/welcome");
+          router.push("/welcome");
           return;
         }
         if (error === "Not logged in") {
-          Router.push("/login");
+          router.push("/login");
           return;
         }
         console.error("Login check error:", err.response?.data ?? err);
       } finally {
-        setLoading(false);
       }
     };
 
     checkLogin();
-  }, [Router, Router.pathname, setLoading, setLogin]);
+  }, [router, router.pathname, setLogin]);
 
   return null;
 }
