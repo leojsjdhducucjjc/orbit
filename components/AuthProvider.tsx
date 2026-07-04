@@ -4,17 +4,17 @@ import { loginState } from "@/state";
 import axios from "axios";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { useSetRecoilState } from "recoil";
+import { useRecoilState } from "recoil";
 
 export default function AuthProvider() {
-  const setLogin = useSetRecoilState(loginState);
+  const [login, setLogin] = useRecoilState(loginState);
   const router = useRouter();
 
   useEffect(() => {
     const path = router.pathname;
     const publicPath =
       path === "/login" || path === "/welcome" || path === "/forgot-password";
-    if (publicPath) {
+    if (publicPath || login.username) {
       return;
     }
 
@@ -38,7 +38,7 @@ export default function AuthProvider() {
     };
 
     checkLogin();
-  }, [router, router.pathname, setLogin]);
+  }, [login.username, router, router.pathname, setLogin]);
 
   return null;
 }

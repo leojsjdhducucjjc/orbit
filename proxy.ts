@@ -49,8 +49,7 @@ async function checkSetup(request: NextRequest): Promise<boolean> {
 
   try {
     const url = internalUrl(request, "/api/admin/first-setup/config");
-    console.log(`[Middleware] Checking setup at: ${url}`);
-    
+
     const res = await fetch(url, {
       cache: 'no-store',
       headers: {
@@ -68,8 +67,6 @@ async function checkSetup(request: NextRequest): Promise<boolean> {
       };
 
       return isSetup;
-    } else {
-      console.log(`[Middleware] Setup check failed with status: ${res.status}`);
     }
   } catch (error) {
     console.error("[Middleware] Failed to check setup:", error);
@@ -101,14 +98,16 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isActuallySetup = await checkSetup(request);
   const appSetupCookie = request.cookies.get("app_setup")?.value;
-  const cookieIsSetup = appSetupCookie === "true";
+  let isActuallySetup = appSetupCookie === "true";
+  let needsCookieUpdate = false;
 
-  const needsCookieUpdate = cookieIsSetup !== isActuallySetup;
+  if (!appSetupCookie || pathname === "/welcome") {
+    isActuallySetup = await checkSetup(request);
+    needsCookieUpdate = appSetupCookie !== String(isActuallySetup);
+  }
 
   if (!isActuallySetup && pathname !== "/welcome") {
-    console.log(`[Middleware] Not setup, redirecting ${pathname} -> /welcome`);
     const res = NextResponse.redirect(new URL("/welcome", request.url));
     res.cookies.set("app_setup", "false", {
       path: "/",
@@ -119,7 +118,6 @@ export default async function middleware(request: NextRequest) {
   }
 
   if (isActuallySetup && pathname === "/welcome") {
-    console.log(`[Middleware] Setup complete, redirecting /welcome -> /`);
     const res = NextResponse.redirect(new URL("/", request.url));
     res.cookies.set("app_setup", "true", {
       path: "/",
@@ -131,7 +129,6 @@ export default async function middleware(request: NextRequest) {
   if (isActuallySetup && !isPublic(pathname)) {
     const token = request.cookies.get("session_token")?.value;
     if (!token) {
-      console.log(`[Middleware] No session token, redirecting ${pathname} -> /login`);
       const res = NextResponse.redirect(new URL("/login", request.url));
       res.cookies.set("app_setup", "true", {
         path: "/",
@@ -140,42 +137,11 @@ export default async function middleware(request: NextRequest) {
       });
       return res;
     }
-
-    try {
-      const url = internalUrl(request, "/api/auth/session/validate");
-      
-      const res = await fetch(url, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!res.ok) {
-        const response = NextResponse.redirect(new URL("/login", request.url));
-        response.cookies.set("app_setup", "true", {
-          path: "/",
-          httpOnly: true,
-          sameSite: "strict",
-        });
-        return response;
-      }
-    } catch (error) {
-      console.error("[Middleware] Session validation failed:", error);
-      const response = NextResponse.redirect(new URL("/login", request.url));
-      response.cookies.set("app_setup", "true", {
-        path: "/",
-        httpOnly: true,
-        sameSite: "strict",
-      });
-      return response;
-    }
   }
 
   const response = NextResponse.next();
 
   if (needsCookieUpdate) {
-    console.log(`[Middleware] Updating app_setup cookie: ${cookieIsSetup} -> ${isActuallySetup}`);
     response.cookies.set("app_setup", String(isActuallySetup), {
       path: "/",
       httpOnly: true,
