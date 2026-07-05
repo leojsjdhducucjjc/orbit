@@ -8,14 +8,8 @@ import { useRecoilState } from "recoil"
 import { useMemo, useEffect, useState } from "react"
 import { useRouter } from "next/router"
 import { IconPlus, IconLayoutDashboard, IconWall, IconBell, IconUsers, IconArrowRight } from "@tabler/icons-react"
-import { withPermissionCheckSsr } from "@/utils/permissionsManager"
-import { GetServerSideProps } from "next"
 import { HomeDashboard } from "@/components/home/dashboard"
 import { normalizeHomeWidgetOrder } from "@/utils/homeWidgets"
-
-export const getServerSideProps: GetServerSideProps = withPermissionCheckSsr(async () => ({
-  props: {},
-}))
 
 const Home: pageWithLayout = () => {
   const [login] = useRecoilState(loginState)
