@@ -28,34 +28,24 @@ const defaultAnnouncement: Announcement = {
   subtitle: `Update: v${packageinfo.version} is now live!`,
   sections: [
     {
-      title: "📚 Documentation rework",
+      title: "Workspace pages open faster",
       content:
-        "We’ve completely reworked our documentation. Everything is clearer, faster, and easier to navigate. Check it out at https://docs.planetaryapp.us/",
+        "Docs, Sessions, Settings, Alliances, Staff, and the workspace dashboard now load as fast static shells instead of waiting on server-side permission and database checks before the page appears.",
     },
     {
-      title: "🔧 Backend improvements",
+      title: "Less waiting between clicks",
       content:
-        "We’ve pushed a wave of backend fixes and stability improvements. Things should feel smoother, faster, and more reliable overall ✨",
+        "Navigation should feel much snappier across the app. The heavier workspace data now loads after the screen opens, while protected APIs still enforce access rules.",
     },
     {
-      title: "👤 Your profile, your control",
+      title: "Faster Staff and Settings data",
       content:
-        "You can now view and edit your own profile — including birthday, timezone, and more personal settings. It’s your space, make it yours.",
+        "Staff role lookups are cached, and Settings only loads the large permissions payload when you actually open the Permissions section.",
     },
     {
-      title: "🎨 UI rework",
+      title: "Cleaner deployment path",
       content:
-        "We’ve reworked large parts of the UI with a cleaner, more modern feel. Go explore it — we think you’ll enjoy what the Planetary Team has been cooking up 👀",
-    },
-    {
-      title: "🧑‍💻 User profile system overhaul",
-      content:
-        "User profiles have been fully migrated to our new internal user API. This makes everything more stable and sets the foundation for future features.",
-    },
-    {
-      title: "",
-      content:
-        "That’s not even everything. Go poke around and see what else has changed — we’d rather let you discover it yourself 😉",
+        "Vercel builds no longer require a database URL just to compile, and the app uses the faster Turbopack build path cleanly.",
     },
   ],
   editorUsername: null,
