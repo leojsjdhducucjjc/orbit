@@ -3,8 +3,7 @@ import { workspacestate } from "@/state";
 import Workspace from "@/layouts/workspace";
 import { useRecoilState } from "recoil";
 import { useRouter } from "next/router";
-import prisma, { document } from "@/utils/database";
-import { withPermissionCheckSsr } from "@/utils/permissionsManager";
+import type { document } from "@/utils/database";
 import {
   IconFileText,
   IconPlus,
@@ -13,7 +12,7 @@ import {
   IconPencil,
   IconFolder,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import {
@@ -44,173 +43,6 @@ type FolderWithCounts = DocFolderOption & {
   _count: { documents: number; children: number };
 };
 
-function buildDocumentAccessFilter(
-  userRoleIds: string[],
-  userDepartmentIds: string[]
-) {
-  return {
-    OR: [
-      ...(userRoleIds.length > 0
-        ? [{ roles: { some: { id: { in: userRoleIds } } } }]
-        : []),
-      ...(userDepartmentIds.length > 0
-        ? [{ departments: { some: { id: { in: userDepartmentIds } } } }]
-        : []),
-      { roles: { none: {} }, departments: { none: {} } },
-    ],
-  };
-}
-
-async function buildBreadcrumbs(
-  folderId: string,
-  workspaceGroupId: number
-): Promise<DocFolderOption[]> {
-  const path: DocFolderOption[] = [];
-  let currentId: string | null = folderId;
-
-  while (currentId) {
-    const folder: DocFolderOption | null = await prisma.documentFolder.findFirst({
-      where: { id: currentId, workspaceGroupId },
-      select: { id: true, name: true, parentId: true, icon: true },
-    });
-    if (!folder) break;
-    path.unshift(folder);
-    currentId = folder.parentId;
-  }
-
-  return path;
-}
-
-export const getServerSideProps = withPermissionCheckSsr(async (context: any) => {
-  const { id, folder: folderQuery } = context.query;
-  const userid = context.req.auth.userId;
-  if (!userid || !id) {
-    return { redirect: { destination: "/login" } };
-  }
-
-  const workspaceGroupId = parseInt(id as string);
-  const currentFolderId =
-    typeof folderQuery === "string" && folderQuery ? folderQuery : null;
-
-  const user = await prisma.user.findFirst({
-    where: { userid },
-    include: {
-      roles: { where: { workspaceGroupId } },
-      workspaceMemberships: {
-        where: { workspaceGroupId },
-        include: { departmentMembers: true },
-      },
-    },
-  });
-
-  if (!user) return { redirect: { destination: "/login" } };
-
-  const config = await prisma.config.findFirst({
-    where: { workspaceGroupId, key: "guides" },
-  });
-
-  let guidesEnabled = false;
-  if (config?.value) {
-    let val = config.value;
-    if (typeof val === "string") {
-      try {
-        val = JSON.parse(val);
-      } catch {
-        val = {};
-      }
-    }
-    guidesEnabled =
-      typeof val === "object" && val !== null && "enabled" in val
-        ? (val as { enabled?: boolean }).enabled ?? false
-        : false;
-  }
-
-  if (!guidesEnabled) return { notFound: true };
-
-  const membership = user.workspaceMemberships?.[0];
-  const isAdmin = membership?.isAdmin || false;
-  const userRoleIds = (user.roles || []).map((r: any) => r.id);
-  const userDepartmentIds = (membership?.departmentMembers || []).map(
-    (d: any) => d.departmentId
-  );
-
-  const canCreate =
-    isAdmin ||
-    (user.roles || []).some((r: any) => (r.permissions || []).includes("create_docs"));
-  const canEdit =
-    isAdmin ||
-    (user.roles || []).some((r: any) => (r.permissions || []).includes("edit_docs"));
-  const canDelete =
-    isAdmin ||
-    (user.roles || []).some((r: any) => (r.permissions || []).includes("delete_docs"));
-  const canManage = canCreate || canEdit || canDelete;
-
-  if (currentFolderId) {
-    const currentFolder = await prisma.documentFolder.findFirst({
-      where: { id: currentFolderId, workspaceGroupId },
-    });
-    if (!currentFolder) return { notFound: true };
-  }
-
-  const baseWhere = {
-    workspaceGroupId,
-    requiresAcknowledgment: false,
-  };
-
-  const docAccessFilter = buildDocumentAccessFilter(userRoleIds, userDepartmentIds);
-
-  const docs = await prisma.document.findMany({
-    where: canManage
-      ? { ...baseWhere, folderId: currentFolderId }
-      : {
-          ...baseWhere,
-          folderId: currentFolderId,
-          ...docAccessFilter,
-        },
-    include: {
-      owner: { select: { username: true, picture: true } },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  const folders = await prisma.documentFolder.findMany({
-    where: canManage
-      ? { workspaceGroupId, parentId: currentFolderId }
-      : {
-          workspaceGroupId,
-          parentId: currentFolderId,
-          OR: [
-            { documents: { some: { ...baseWhere, ...docAccessFilter } } },
-            { children: { some: { documents: { some: { ...baseWhere, ...docAccessFilter } } } } },
-          ],
-        },
-    include: {
-      _count: {
-        select: { documents: true, children: true },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  const breadcrumbs = currentFolderId
-    ? await buildBreadcrumbs(currentFolderId, workspaceGroupId)
-    : [];
-
-  return {
-    props: {
-      documents: JSON.parse(
-        JSON.stringify(docs, (_k, v) => (typeof v === "bigint" ? v.toString() : v))
-      ) as (document & { owner: { username: string; picture: string } })[],
-      folders: JSON.parse(JSON.stringify(folders)) as FolderWithCounts[],
-      breadcrumbs: JSON.parse(JSON.stringify(breadcrumbs)) as DocFolderOption[],
-      currentFolderId,
-      canCreate,
-      canEdit,
-      canDelete,
-    },
-  };
-});
-
 type pageProps = {
   documents: (document & { owner: { username: string; picture: string } })[];
   folders: FolderWithCounts[];
@@ -222,21 +54,24 @@ type pageProps = {
   canDelete: boolean;
 };
 
-const DocsLibrary: pageWithLayout<pageProps> = ({
-  documents,
-  folders,
-  breadcrumbs,
-  currentFolderId,
-  canCreate,
-  canEdit,
-  canDelete,
-}) => {
+const DocsLibrary: pageWithLayout<Partial<pageProps>> = (props) => {
   const router = useRouter();
   const [workspace] = useRecoilState(workspacestate);
   const workspaceId = router.query.id as string;
   const workspaceLabel = workspace.customName || workspace.groupName;
   const externalLink = useExternalLinkModal();
+  const currentFolderId =
+    typeof router.query.folder === "string" && router.query.folder
+      ? router.query.folder
+      : null;
 
+  const [documents, setDocuments] = useState<(document & { owner: { username: string; picture: string } })[]>(props.documents ?? []);
+  const [folders, setFolders] = useState<FolderWithCounts[]>(props.folders ?? []);
+  const [breadcrumbs, setBreadcrumbs] = useState<DocFolderOption[]>(props.breadcrumbs ?? []);
+  const [canCreate, setCanCreate] = useState(props.canCreate ?? false);
+  const [canEdit, setCanEdit] = useState(props.canEdit ?? false);
+  const [canDelete, setCanDelete] = useState(props.canDelete ?? false);
+  const [loadingDocs, setLoadingDocs] = useState(true);
   const [folderModalMode, setFolderModalMode] = useState<"create" | "rename" | null>(null);
   const [folderName, setFolderName] = useState("");
   const [folderIcon, setFolderIcon] = useState<FolderIconId>(DEFAULT_FOLDER_ICON);
@@ -248,6 +83,31 @@ const DocsLibrary: pageWithLayout<pageProps> = ({
 
   const docsBase = `/workspace/${workspaceId}/docs`;
   const isEmpty = documents.length === 0 && folders.length === 0;
+  const loadDocs = useCallback(async () => {
+    if (!workspaceId) return;
+    setLoadingDocs(true);
+    try {
+      const res = await axios.get(`/api/workspace/${workspaceId}/guides/list`, {
+        params: currentFolderId ? { folder: currentFolderId } : undefined,
+      });
+      setDocuments(res.data.documents || []);
+      setFolders(res.data.folders || []);
+      setBreadcrumbs(res.data.breadcrumbs || []);
+      setCanCreate(!!res.data.canCreate);
+      setCanEdit(!!res.data.canEdit);
+      setCanDelete(!!res.data.canDelete);
+    } catch {
+      setDocuments([]);
+      setFolders([]);
+      setBreadcrumbs([]);
+    } finally {
+      setLoadingDocs(false);
+    }
+  }, [workspaceId, currentFolderId]);
+
+  useEffect(() => {
+    loadDocs();
+  }, [loadDocs]);
 
   const openDoc = (doc: (typeof documents)[0]) => {
     if (isExternalContent(doc.content)) {
@@ -258,7 +118,7 @@ const DocsLibrary: pageWithLayout<pageProps> = ({
   };
 
   const refreshPage = () => {
-    router.replace(router.asPath);
+    loadDocs();
   };
 
   const openCreateFolder = () => {
@@ -383,7 +243,11 @@ const DocsLibrary: pageWithLayout<pageProps> = ({
           </DocsPanel>
         )}
 
-        {isEmpty ? (
+        {loadingDocs ? (
+          <DocsPanel className="p-8 text-sm text-zinc-500 dark:text-zinc-400">
+            Loading documents...
+          </DocsPanel>
+        ) : isEmpty ? (
           <DocsEmptyState
             icon={currentFolderId ? IconFolder : IconFileText}
             title={currentFolderId ? "This folder is empty" : "No documents yet"}

@@ -7,13 +7,9 @@ import { useState, Fragment, useMemo, useEffect } from "react";
 import randomText from "@/utils/randomText";
 import { useRecoilState } from "recoil";
 import toast from "react-hot-toast";
-import { InferGetServerSidePropsType } from "next";
 import { Dialog, Transition } from "@headlessui/react";
-import { withPermissionCheckSsr } from "@/utils/permissionsManager";
 import { FormProvider, SubmitHandler, useForm } from "react-hook-form";
 import Input from "@/components/input";
-import prisma from "@/utils/database";
-import { getUsername, getThumbnail } from "@/utils/userinfoEngine";
 import Checkbox from "@/components/checkbox";
 import Tooltip from "@/components/tooltip";
 import {
@@ -40,77 +36,16 @@ type Form = {
   notes: string;
 };
 
-export const getServerSideProps = withPermissionCheckSsr(
-  async ({ req, res, params }) => {
-    const wsId = parseInt(params?.id as string, 10);
-    let users = await prisma.user.findMany({
-      where: {
-        roles: {
-          some: {
-            workspaceGroupId: wsId,
-            permissions: {
-              has: "represent_alliance",
-            },
-          },
-        },
-      },
-    });
-    const infoUsers: any = await Promise.all(
-      users.map(async (user: any) => {
-        return {
-          ...user,
-          userid: Number(user.userid),
-          thumbnail: getThumbnail(user.userid),
-        };
-      })
-    );
-
-    const allies: any = await prisma.ally.findMany({
-      where: {
-        workspaceGroupId: wsId,
-      },
-      include: {
-        reps: true,
-      },
-    });
-    const infoAllies = await Promise.all(
-      allies.map(async (ally: any) => {
-        const infoReps = await Promise.all(
-          ally.reps.map(async (rep: any) => {
-            return {
-              ...rep,
-              userid: Number(rep.userid),
-              username: await getUsername(rep.userid),
-              thumbnail: getThumbnail(rep.userid),
-            };
-          })
-        );
-
-        return {
-          ...ally,
-          reps: infoReps,
-        };
-      })
-    );
-
-    return {
-      props: {
-        infoUsers,
-        infoAllies,
-      },
-    };
-  }
-);
-
-type pageProps = InferGetServerSidePropsType<typeof getServerSideProps>;
-
-const Allies: pageWithLayout<pageProps> = (props) => {
+const Allies: pageWithLayout = () => {
   const router = useRouter();
   const { id } = router.query;
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [login, setLogin] = useRecoilState(loginState);
   const [workspace] = useRecoilState(workspacestate);
   const text = useMemo(() => randomText(login.displayname), []);
+  const [users, setUsers] = useState<any[]>([]);
+  const [allies, setAllies] = useState<any[]>([]);
+  const [loadingAllies, setLoadingAllies] = useState(true);
   const canManageAlliances =
     workspace.yourPermission?.includes("create_alliances") || false;
 
@@ -243,8 +178,23 @@ const Allies: pageWithLayout<pageProps> = (props) => {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
-  const allies: any = props.infoAllies;
-  const users: any = props.infoUsers;
+  const loadAllies = async () => {
+    if (!id) return;
+    setLoadingAllies(true);
+    try {
+      const res = await axios.get(`/api/workspace/${id}/allies`);
+      setUsers(res.data.users || []);
+      setAllies(res.data.allies || []);
+    } catch {
+      toast.error("Failed to load alliances");
+    } finally {
+      setLoadingAllies(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAllies();
+  }, [id]);
 
   return (
     <>
@@ -273,7 +223,11 @@ const Allies: pageWithLayout<pageProps> = (props) => {
           subtitle="Your group's alliance partners"
         />
 
-        {allies.length === 0 ? (
+        {loadingAllies ? (
+          <AlliancesPanel className="p-8 text-sm text-zinc-500 dark:text-zinc-400">
+            Loading alliances...
+          </AlliancesPanel>
+        ) : allies.length === 0 ? (
           <AlliancesEmptyState
             icon={IconClipboardList}
             title="No alliances yet"

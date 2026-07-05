@@ -1,7 +1,7 @@
 "use client";
 
 import type { pageWithLayout } from "@/layoutTypes";
-import { loginState } from "@/state";
+import { workspacestate } from "@/state";
 import {
   IconHome,
   IconLock,
@@ -15,25 +15,16 @@ import {
 } from "@tabler/icons-react";
 import Permissions from "@/components/settings/permissions";
 import Workspace from "@/layouts/workspace";
-import type { GetServerSideProps } from "next";
 import * as All from "@/components/settings/general";
 import * as Api from "@/components/settings/api";
 import * as Instance from "@/components/settings/instance";
 import * as Integrations from "@/components/settings/integration";
-import * as cookie from "cookie";
 import toast from "react-hot-toast";
-import * as noblox from "noblox.js";
-import { withPermissionCheckSsr } from "@/utils/permissionsManager";
-import prisma from "@/utils/database";
 import { useRouter } from "next/router";
-import {
-  getUsername,
-  getDisplayName,
-  getThumbnail,
-} from "@/utils/userinfoEngine";
 import { useState, useEffect } from "react";
+import axios from "axios";
 import clsx from "clsx";
-import { getSessionByToken } from "@/utils/session";
+import { useRecoilValue } from "recoil";
 
 const encodeTab = (tab: string) => {
   return btoa(tab);
@@ -48,133 +39,11 @@ const decodeTab = (value: string | null) => {
   }
 };
 
-export const getServerSideProps: GetServerSideProps = withPermissionCheckSsr(
-  async ({ params, res, req }) => {
-    if (!params?.id) {
-      res.statusCode = 404;
-      return { props: {} };
-    }
-
-    const workspaceGroupId = Number.parseInt(params.id as string);
-    const cookies = cookie.parse(req.headers.cookie || "");
-    const token = cookies.session_token;
-    if (!token)
-      return { redirect: { destination: "/login", permanent: false } };
-
-    const session = await getSessionByToken(token);
-    if (!session)
-      return { redirect: { destination: "/login", permanent: false } };
-
-    const currentUserId = session.userId; // already a BigInt
-
-    const currentUser = await prisma.user.findFirst({
-      where: { userid: currentUserId },
-      include: {
-        workspaceMemberships: { where: { workspaceGroupId } },
-        roles: { where: { workspaceGroupId } },
-      },
-    });
-
-    const membership = currentUser?.workspaceMemberships?.[0];
-    const isAdmin = membership?.isAdmin || false;
-    const userPermissions = currentUser?.roles?.[0]?.permissions || [];
-
-    const grouproles = await noblox.getRoles(Number(params.id));
-    const users = await prisma.user.findMany({
-      where: {
-        roles: {
-          some: {
-            workspaceGroupId: Number.parseInt(params.id as string),
-          },
-        },
-      },
-      include: {
-        roles: {
-          where: {
-            workspaceGroupId: Number.parseInt(params.id as string),
-          },
-        },
-        workspaceMemberships: {
-          where: {
-            workspaceGroupId: Number.parseInt(params.id as string),
-          },
-        },
-      },
-    });
-
-    const roles = await prisma.role.findMany({
-      where: {
-        workspaceGroupId: Number.parseInt(params.id as string),
-      },
-    });
-
-    const departments = await prisma.department.findMany({
-      where: {
-        workspaceGroupId: Number.parseInt(params.id as string),
-      },
-    });
-
-    const usersWithInfo = await Promise.all(
-      users.map(async (user) => {
-        const username = user.username || (await getUsername(user.userid));
-        const thumbnail = user.picture || getThumbnail(user.userid);
-        const displayName =
-          user.username || (await getDisplayName(user.userid));
-        return {
-          ...user,
-          userid: Number(user.userid),
-          username,
-          thumbnail,
-          displayName,
-          workspaceMemberships: user.workspaceMemberships?.map((m) => ({
-            ...m,
-            userId: Number(m.userId),
-            lineManagerId: m.lineManagerId ? Number(m.lineManagerId) : null,
-            joinDate: m.joinDate ? m.joinDate.toISOString() : null,
-          })),
-        };
-      }),
-    );
-
-    return {
-      props: {
-        users: usersWithInfo.map((u) => ({
-          ...u,
-          roles: u.roles.map((r: any) => ({
-            ...r,
-            groupRoles: r.groupRoles.map((id: any) => id.toString()),
-          })),
-        })),
-        roles: roles.map((r) => ({
-          ...r,
-          groupRoles: r.groupRoles.map((id) => id.toString()),
-        })),
-        departments: departments.map((d) => ({
-          ...d,
-          createdAt: d.createdAt ? d.createdAt.toISOString() : null,
-          updatedAt: d.updatedAt ? d.updatedAt.toISOString() : null,
-        })),
-        grouproles,
-        isAdmin,
-        userPermissions,
-      },
-    };
-  },
-  [
-    "admin",
-    "workspace_customisation",
-    "reset_activity",
-    "manage_features",
-    "manage_apikeys",
-    "view_audit_logs",
-  ],
-);
-
 type Props = {
-  roles: [];
-  users: [];
-  departments: [];
-  grouproles: [];
+  roles: any[];
+  users: any[];
+  departments: any[];
+  grouproles: any[];
   isAdmin: boolean;
   userPermissions: string[];
 };
@@ -291,16 +160,23 @@ const SECTIONS = {
   },
 };
 
-const Settings: pageWithLayout<Props> = ({
-  users,
-  roles,
-  departments,
-  grouproles,
-  isAdmin,
-  userPermissions,
+const Settings: pageWithLayout<Partial<Props>> = ({
+  users: initialUsers = [],
+  roles: initialRoles = [],
+  departments: initialDepartments = [],
+  grouproles: initialGroupRoles = [],
 }) => {
+  const workspace = useRecoilValue(workspacestate);
   const [activeSection, setActiveSection] = useState("general");
   const [isSidebarExpanded] = useState(true);
+  const [users, setUsers] = useState(initialUsers);
+  const [roles, setRoles] = useState(initialRoles);
+  const [departments, setDepartments] = useState(initialDepartments);
+  const [grouproles, setGroupRoles] = useState(initialGroupRoles);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+
+  const isAdmin = workspace.isAdmin || workspace.yourPermission.includes("admin");
+  const userPermissions = workspace.yourPermission || [];
 
   const hasPermission = (permission: string) => {
     return isAdmin || userPermissions.includes(permission);
@@ -348,13 +224,37 @@ const Settings: pageWithLayout<Props> = ({
     ) {
       setActiveSection(availableSections[0][0]);
     }
-  }, []);
+  }, [availableSections, activeSection]);
+
+  useEffect(() => {
+    if (activeSection !== "permissions" || !router.query.id || users.length > 0) return;
+
+    setPermissionsLoading(true);
+    axios
+      .get(`/api/workspace/${router.query.id}/settings/bootstrap`)
+      .then((res) => {
+        setUsers(res.data.users || []);
+        setRoles(res.data.roles || []);
+        setDepartments(res.data.departments || []);
+        setGroupRoles(res.data.grouproles || []);
+      })
+      .catch(() => toast.error("Failed to load permissions data"))
+      .finally(() => setPermissionsLoading(false));
+  }, [activeSection, router.query.id, users.length]);
 
   const panelClass =
     "rounded-2xl bg-white shadow-[0_1px_3px_0_rgb(0,0,0,0.06),0_1px_2px_-1px_rgb(0,0,0,0.04)] dark:bg-zinc-900/70 dark:shadow-zinc-950/30";
 
   const renderContent = () => {
     if (activeSection === "permissions") {
+      if (permissionsLoading && users.length === 0) {
+        return (
+          <div className={`${panelClass} p-8 text-sm text-zinc-500 dark:text-zinc-400`}>
+            Loading permissions...
+          </div>
+        );
+      }
+
       return (
         <div className={`${panelClass} p-5 sm:p-6`}>
           <Permissions

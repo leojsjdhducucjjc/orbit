@@ -13,19 +13,17 @@ import {
   IconX,
   IconBan,
 } from "@tabler/icons-react";
-import prisma, { Session, user, SessionType } from "@/utils/database";
+import type { Session, user, SessionType } from "@/utils/database";
 import { useRecoilState } from "recoil";
 import { useRouter } from "next/router";
 import randomText from "@/utils/randomText";
 import { useState, useMemo, useEffect } from "react";
 import { useSessionColors } from "@/hooks/useSessionColors";
 import axios from "axios";
-import { withPermissionCheckSsr } from "@/utils/permissionsManager";
 import toast from "react-hot-toast";
 import SessionTemplate from "@/components/sessioncard";
 import PatternEditDialog from "@/components/sessionpatterns";
 import { canCreateAnySession, canAddNotes, canManageSession } from "@/utils/sessionPermissions";
-import { AuthenticatedRequest } from "@/lib/withAuth";
 import clsx from "clsx";
 import {
   SessionsPageShell,
@@ -95,185 +93,6 @@ function SessionMemberAvatar({
     </div>
   );
 }
-
-export const getServerSideProps = withPermissionCheckSsr(
-  async ({ query, req }) => {
-    const currentDate = new Date();
-    const startOfToday = new Date(currentDate);
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date(currentDate);
-    endOfToday.setHours(23, 59, 59, 999);
-    const oneHourAgo = new Date();
-    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
-    const allSessions = await prisma.session.findMany({
-      where: {
-        sessionType: {
-          workspaceGroupId: parseInt(query.id as string),
-        },
-        date: {
-          gte: oneHourAgo < startOfToday ? startOfToday : oneHourAgo,
-          lte: endOfToday,
-        },
-      },
-      include: {
-        owner: true,
-        sessionType: true,
-        users: {
-          include: {
-            user: true,
-          },
-        },
-      },
-      orderBy: {
-        date: "asc",
-      },
-    });
-
-    const authReq = req as AuthenticatedRequest;
-
-    let filteredSessions = allSessions;
-    let isAdmin = false;
-    if ((req as any).auth?.userId) {
-      const userId = BigInt(authReq.auth.userId);
-      const user = await prisma.user.findFirst({
-        where: { userid: userId },
-        include: {
-          roles: {
-            where: { workspaceGroupId: parseInt(query.id as string) },
-          },
-          workspaceMemberships: {
-            where: { workspaceGroupId: parseInt(query.id as string) },
-          },
-        },
-      });
-
-      const membership = user?.workspaceMemberships?.[0];
-      isAdmin = membership?.isAdmin || false;
-
-      if (user && user.roles?.[0] && !isAdmin) {
-        const role = user.roles[0];
-        const sessionTypes = ["shift", "training", "event", "other"];
-        const visibleTypes = sessionTypes.filter(type => 
-          role.permissions.includes(`sessions_${type}_see`)
-        );
-        
-        if (visibleTypes.length > 0) {
-          filteredSessions = allSessions.filter((session) =>
-            visibleTypes.includes(session.type || "other")
-          );
-        } else {
-          filteredSessions = [];
-        }
-      }
-    }
-
-    let userSessionMetrics = null;
-    if ((req as any).auth?.userId) {
-      const userId = BigInt(authReq.auth.userId);
-      const lastReset = await prisma.activityReset.findFirst({
-        where: {
-          workspaceGroupId: parseInt(query.id as string),
-        },
-        orderBy: {
-          resetAt: "desc",
-        },
-      });
-
-      const startDate = lastReset?.resetAt || new Date("2025-01-01");
-      const ownedSessions = await prisma.session.findMany({
-        where: {
-          ownerId: userId,
-          sessionType: {
-            workspaceGroupId: parseInt(query.id as string),
-          },
-          date: {
-            gte: startDate,
-            lte: currentDate,
-          },
-          archived: { not: true },
-        },
-      });
-
-      const allSessionParticipations = await prisma.sessionUser.findMany({
-        where: {
-          userid: userId,
-          session: {
-            sessionType: {
-              workspaceGroupId: parseInt(query.id as string),
-            },
-            date: {
-              gte: startDate,
-              lte: currentDate,
-            },
-            archived: { not: true },
-          },
-          archived: { not: true },
-        },
-        include: {
-          session: {
-            select: {
-              id: true,
-              sessionType: {
-                select: {
-                  slots: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      const roleBasedHostedSessions = allSessionParticipations.filter(
-        (participation) => {
-          const slots = participation.session.sessionType.slots as any[];
-          const slotIndex = participation.slot;
-          const slotName = slots[slotIndex]?.name || "";
-          return (
-            participation.roleID.toLowerCase().includes("host") ||
-            participation.roleID.toLowerCase().includes("co-host") ||
-            slotName.toLowerCase().includes("host") ||
-            slotName.toLowerCase().includes("co-host")
-          );
-        }
-      ).length;
-
-      const sessionsHosted = ownedSessions.length + roleBasedHostedSessions;
-      const ownedSessionIds = new Set(ownedSessions.map((s) => s.id));
-      const sessionsAttended = allSessionParticipations.filter(
-        (participation) => {
-          const slots = participation.session.sessionType.slots as any[];
-          const slotIndex = participation.slot;
-          const slotName = slots[slotIndex]?.name || "";
-          const isHosting =
-            participation.roleID.toLowerCase().includes("host") ||
-            participation.roleID.toLowerCase().includes("co-host") ||
-            slotName.toLowerCase().includes("host") ||
-            slotName.toLowerCase().includes("co-host");
-
-          return !isHosting && !ownedSessionIds.has(participation.sessionid);
-        }
-      ).length;
-
-      userSessionMetrics = {
-        sessionsHosted,
-        sessionsAttended,
-      };
-    }
-
-    return {
-      props: {
-        allSessions: JSON.parse(
-          JSON.stringify(filteredSessions, (key, value) =>
-            typeof value === "bigint" ? value.toString() : value
-          )
-        ) as typeof allSessions,
-        userSessionMetrics,
-      },
-    };
-  }
-);
 
 const getMonday = (date: Date): Date => {
   const d = new Date(date);
@@ -618,11 +437,11 @@ type pageProps = {
   } | null;
 };
 
-const Home: pageWithLayout<pageProps> = (props) => {
+const Home: pageWithLayout<Partial<pageProps>> = (props) => {
   const [login, setLogin] = useRecoilState(loginState);
   const [workspace, setWorkspace] = useRecoilState(workspacestate);
   const [currentWeek, setCurrentWeek] = useState<Date>(new Date());
-  const [allSessions, setAllSessions] = useState<any[]>(props.allSessions);
+  const [allSessions, setAllSessions] = useState<any[]>(props.allSessions ?? []);
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const today = new Date();
     const monday = getMonday(currentWeek);
@@ -653,7 +472,7 @@ const Home: pageWithLayout<pageProps> = (props) => {
     getSessionTypeColor,
     getTextColorForBackground,
   } = useSessionColors(workspaceIdForColors);
-  const { userSessionMetrics } = props;
+  const userSessionMetrics = props.userSessionMetrics ?? null;
 
 
 
@@ -757,7 +576,7 @@ const Home: pageWithLayout<pageProps> = (props) => {
 
   useEffect(() => {
     const today = new Date().toDateString();
-    if (!hasInitialLoad && selectedDate.toDateString() === today && props.allSessions.length > 0) {
+    if (!hasInitialLoad && selectedDate.toDateString() === today && (props.allSessions?.length ?? 0) > 0) {
       setHasInitialLoad(true);
       return;
     }
