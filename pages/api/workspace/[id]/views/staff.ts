@@ -5,6 +5,28 @@ import { getConfig } from "@/utils/configEngine";
 import { getThumbnail } from "@/utils/userinfoEngine";
 import noblox from "noblox.js";
 
+const ROBLOX_ROLES_CACHE_MS = 10 * 60 * 1000;
+const robloxRolesCache = new Map<number, { roles: any[]; timestamp: number }>();
+
+async function getCachedRobloxRoles(workspaceGroupId: number) {
+  const cached = robloxRolesCache.get(workspaceGroupId);
+  if (cached && Date.now() - cached.timestamp < ROBLOX_ROLES_CACHE_MS) {
+    return cached.roles;
+  }
+
+  const roles = await noblox.getRoles(workspaceGroupId).catch((error) => {
+    console.error("Error fetching ranks from Roblox:", error);
+    return [];
+  });
+
+  robloxRolesCache.set(workspaceGroupId, {
+    roles,
+    timestamp: Date.now(),
+  });
+
+  return roles;
+}
+
 export default withPermissionCheck(
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
@@ -162,7 +184,7 @@ export default withPermissionCheck(
         });
       }
 
-      const robloxRoles = await noblox.getRoles(workspaceGroupId).catch(() => []);
+      const robloxRoles = await getCachedRobloxRoles(workspaceGroupId);
       const roleIdToInfoMap = new Map<number, { rank: number; name: string }>();
       robloxRoles.forEach(role => {
         roleIdToInfoMap.set(role.id, { rank: role.rank, name: role.name });
@@ -505,13 +527,11 @@ export default withPermissionCheck(
         });
       }
 
-      let ranks: any[] = [];
-      try {
-        ranks = await noblox.getRoles(workspaceGroupId);
-      } catch (error) {
-        console.error('Error fetching ranks from Roblox:', error);
-        ranks = [];
-      }
+      const departments = await prisma.department.findMany({
+        where: { workspaceGroupId },
+        select: { id: true, name: true, color: true },
+        orderBy: { name: "asc" },
+      });
       
       // Apply post-computation filters (for computed fields like minutes, rank, etc.)
       let filteredUsers = computedUsers;
@@ -609,7 +629,8 @@ export default withPermissionCheck(
 
       return res.status(200).json({
         users: serializedUsers,
-        ranks,
+        ranks: robloxRoles,
+        departments,
         pagination: {
           page,
           pageSize,

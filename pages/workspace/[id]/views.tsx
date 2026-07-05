@@ -1,14 +1,11 @@
 import workspace from "@/layouts/workspace";
 import { pageWithLayout } from "@/layoutTypes";
-import { loginState } from "@/state";
 import { Fragment, useEffect, useState } from "react";
 import { Dialog, Popover, Transition } from "@headlessui/react";
-import { GetServerSidePropsContext } from "next";
-import { useRecoilState } from "recoil";
+import { useRecoilValue } from "recoil";
 import { workspacestate } from "@/state";
 import Input from "@/components/input";
 import { v4 as uuidv4 } from "uuid";
-import prisma from "@/utils/database";
 import {
   createColumnHelper,
   flexRender,
@@ -30,8 +27,6 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import { useRouter } from "next/router";
 import moment from "moment";
-import { withPermissionCheckSsr } from "@/utils/permissionsManager";
-import { getConfig } from "@/utils/configEngine";
 import { SAVED_VIEW_NAME_MAX_LENGTH } from "@/utils/savedViewLimits";
 import StaffOrgChart from "@/components/views/StaffOrgChart";
 import type { OrgChartEdge, OrgChartNode } from "@/components/views/StaffOrgChart";
@@ -101,50 +96,6 @@ type User = {
   departments?: string[];
 };
 
-export const getServerSideProps = withPermissionCheckSsr(
-  async ({ params, req }: GetServerSidePropsContext) => {
-    const workspaceGroupId = parseInt(params?.id as string)
-
-    const currentUserId = (req as any).auth?.userId as bigint
-
-    const currentUser = await prisma.user.findFirst({
-      where: { userid: currentUserId },
-      include: {
-        workspaceMemberships: { where: { workspaceGroupId } },
-        roles: { where: { workspaceGroupId } },
-      },
-    })
-
-    const membership = currentUser?.workspaceMemberships?.[0]
-    const isAdmin = membership?.isAdmin || false
-    const userRole = currentUser?.roles?.[0]
-    const hasManageViewsPerm = userRole?.permissions?.includes("edit_views") || false
-    const hasCreateViewsPerm = userRole?.permissions?.includes("create_views") || false
-    const hasDeleteViewsPerm = userRole?.permissions?.includes("delete_views") || false
-    const hasUseSavedViewsPerm = userRole?.permissions?.includes("use_views") || false
-    const hasViewMemberProfiles = isAdmin || userRole?.permissions?.includes("view_member_profiles") || false
-
-    const departments = await prisma.department.findMany({
-      where: { workspaceGroupId },
-      select: { id: true, name: true, color: true },
-      orderBy: { name: 'asc' },
-    })
-
-    return {
-      props: {
-        isAdmin,
-        hasManageViewsPerm,
-        hasCreateViewsPerm,
-        hasDeleteViewsPerm,
-        hasUseSavedViewsPerm,
-        hasViewMemberProfiles,
-        departments: JSON.parse(JSON.stringify(departments)),
-      },
-    }
-  },
-  "view_members"
-)
-
 const filters: {
   [key: string]: string[];
 } = {
@@ -183,18 +134,8 @@ function normalizeSavedViewName(input: string): string {
   })}`.slice(0, SAVED_VIEW_NAME_MAX_LENGTH);
 }
 
-type pageProps = {
-  isAdmin: boolean;
-  hasManageViewsPerm: boolean;
-  hasCreateViewsPerm: boolean;
-  hasDeleteViewsPerm: boolean;
-  hasUseSavedViewsPerm: boolean;
-  hasViewMemberProfiles: boolean;
-  departments: Array<{ id: string; name: string; color: string | null }>;
-};
-const Views: pageWithLayout<pageProps> = ({ isAdmin, hasManageViewsPerm, hasCreateViewsPerm, hasDeleteViewsPerm, hasUseSavedViewsPerm, hasViewMemberProfiles, departments }) => {
-  const [login, setLogin] = useRecoilState(loginState);
-  const [workspace, setWorkspace] = useRecoilState(workspacestate);
+const Views: pageWithLayout = () => {
+  const workspace = useRecoilValue(workspacestate);
   const router = useRouter();
   const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -207,6 +148,7 @@ const Views: pageWithLayout<pageProps> = ({ isAdmin, hasManageViewsPerm, hasCrea
   const [minutes, setMinutes] = useState(0);
   const [users, setUsers] = useState<User[]>([]);
   const [ranks, setRanks] = useState<{ id: number; rank: number; name: string }[]>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string; color: string | null }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -264,20 +206,24 @@ const Views: pageWithLayout<pageProps> = ({ isAdmin, hasManageViewsPerm, hasCrea
   };
 
   const hasManageViews = () => {
-    return isAdmin || hasManageViewsPerm;
+    return workspace.yourPermission.includes("admin") || workspace.yourPermission.includes("edit_views");
   };
 
   const hasCreateViews = () => {
-    return isAdmin || hasCreateViewsPerm;
+    return workspace.yourPermission.includes("admin") || workspace.yourPermission.includes("create_views");
   };
 
   const hasDeleteViews = () => {
-    return isAdmin || hasDeleteViewsPerm;
+    return workspace.yourPermission.includes("admin") || workspace.yourPermission.includes("delete_views");
   };
 
   const hasUseSavedViews = () => {
-    return isAdmin || hasUseSavedViewsPerm;
+    return workspace.yourPermission.includes("admin") || workspace.yourPermission.includes("use_views");
   };
+
+  const hasViewMemberProfiles =
+    workspace.yourPermission.includes("admin") ||
+    workspace.yourPermission.includes("view_member_profiles");
 
   const columnHelper = createColumnHelper<User>();
 
@@ -490,7 +436,7 @@ const Views: pageWithLayout<pageProps> = ({ isAdmin, hasManageViewsPerm, hasCrea
 
   useEffect(() => {
     if (router.query.id && hasUseSavedViews()) loadSavedViews();
-  }, [router.query.id]);
+  }, [router.query.id, workspace.yourPermission]);
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
@@ -516,6 +462,7 @@ const Views: pageWithLayout<pageProps> = ({ isAdmin, hasManageViewsPerm, hasCrea
         if (res.data) {
           setUsers(res.data.users || []);
           setRanks(res.data.ranks || []);
+          setDepartments(res.data.departments || []);
           setTotalUsers(res.data.pagination?.totalUsers || 0);
         }
       } catch (error) {
