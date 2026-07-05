@@ -3,6 +3,9 @@ import prisma from "@/utils/database";
 import { AuthenticatedRequest, withAuth } from "@/lib/withAuth";
 import packageinfo from '@/package.json'
 
+const DEFAULT_ANNOUNCEMENT_AUTHOR = "leojsjdhducucjjc";
+const DEFAULT_ANNOUNCEMENT_ICON = "https://github.com/leojsjdhducucjjc.png";
+
 type Data = {
   success: boolean;
   error?: string;
@@ -59,44 +62,34 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse<Data>) {
     });
 
     const defaultAnnouncement = {
-  title: "Planetary",
-  subtitle: `Update: v${packageinfo.version} is now live!`,
-  sections: [
-    {
-      title: "📚 Documentation rework",
-      content:
-        "We’ve completely reworked our documentation. Everything is clearer, faster, and easier to navigate. Check it out at https://docs.planetaryapp.us/",
-    },
-    {
-      title: "🔧 Backend improvements",
-      content:
-        "We’ve pushed a wave of backend fixes and stability improvements. Things should feel smoother, faster, and more reliable overall ✨",
-    },
-    {
-      title: "👤 Your profile, your control",
-      content:
-        "You can now view and edit your own profile — including birthday, timezone, and more personal settings. It’s your space, make it yours.",
-    },
-    {
-      title: "🎨 UI rework",
-      content:
-        "We’ve reworked large parts of the UI with a cleaner, more modern feel. Go explore it — we think you’ll enjoy what the Planetary Team has been cooking up 👀",
-    },
-    {
-      title: "🧑‍💻 User profile system overhaul",
-      content:
-        "User profiles have been fully migrated to our new internal user API. This makes everything more stable and sets the foundation for future features.",
-    },
-    {
-      title: "",
-      content:
-        "That’s not even everything. Go poke around and see what else has changed — we’d rather let you discover it yourself 😉",
-    },
-  ],
-  editorUsername: null,
-  editorPicture: null,
-  isDefault: true,
-};
+      title: DEFAULT_ANNOUNCEMENT_AUTHOR,
+      subtitle: `Update: v${packageinfo.version} is now live!`,
+      sections: [
+        {
+          title: "Workspace pages open faster",
+          content:
+            "Docs, Sessions, Settings, Alliances, Staff, and the workspace dashboard now load as fast static shells instead of waiting on server-side permission and database checks before the page appears.",
+        },
+        {
+          title: "Less waiting between clicks",
+          content:
+            "Navigation should feel much snappier across the app. The heavier workspace data now loads after the screen opens, while protected APIs still enforce access rules.",
+        },
+        {
+          title: "Faster Staff and Settings data",
+          content:
+            "Staff role lookups are cached, and Settings only loads the large permissions payload when you actually open the Permissions section.",
+        },
+        {
+          title: "Cleaner deployment path",
+          content:
+            "Vercel builds no longer require a database URL just to compile, and the app uses the faster Turbopack build path cleanly.",
+        },
+      ],
+      editorUsername: DEFAULT_ANNOUNCEMENT_AUTHOR,
+      editorPicture: DEFAULT_ANNOUNCEMENT_ICON,
+      isDefault: true,
+    };
 
     return res.status(200).json({
       success: true,

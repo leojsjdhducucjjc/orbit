@@ -8,6 +8,8 @@ import { useRecoilState } from "recoil";
 import { workspacestate } from "@/state";
 
 const ANNOUNCEMENT_KEY = `announcementDismissed_${packageinfo.version}`;
+const DEFAULT_ANNOUNCEMENT_AUTHOR = "leojsjdhducucjjc";
+const DEFAULT_ANNOUNCEMENT_ICON = "https://github.com/leojsjdhducucjjc.png";
 
 interface Section {
   title: string;
@@ -24,7 +26,7 @@ interface Announcement {
 }
 
 const defaultAnnouncement: Announcement = {
-  title: "Planetary",
+  title: DEFAULT_ANNOUNCEMENT_AUTHOR,
   subtitle: `Update: v${packageinfo.version} is now live!`,
   sections: [
     {
@@ -49,7 +51,7 @@ const defaultAnnouncement: Announcement = {
     },
   ],
   editorUsername: null,
-  editorPicture: null,
+  editorPicture: DEFAULT_ANNOUNCEMENT_ICON,
   isDefault: true,
 };
 
@@ -164,8 +166,16 @@ export default function StickyNoteAnnouncement() {
   return (
     <div className="z-0 bg-white dark:bg-zinc-900/70 rounded-2xl shadow-[0_1px_3px_0_rgb(0,0,0,0.06),0_1px_2px_-1px_rgb(0,0,0,0.04)] dark:shadow-zinc-950/30 p-4 flex items-start space-x-4 mb-6 relative">
       <img
-        src={workspace?.groupThumbnail || "/favicon.png"}
-        alt={workspace?.groupName || "Planetary"}
+        src={
+          displayAnnouncement.isDefault
+            ? displayAnnouncement.editorPicture || DEFAULT_ANNOUNCEMENT_ICON
+            : workspace?.groupThumbnail || "/favicon.png"
+        }
+        alt={
+          displayAnnouncement.isDefault
+            ? displayAnnouncement.title
+            : workspace?.groupName || "Announcement"
+        }
         className="w-10 h-10 rounded-full object-cover bg-zinc-100 dark:bg-zinc-800 flex-shrink-0"
       />
       <div className="flex-1">
@@ -295,8 +305,7 @@ export default function StickyNoteAnnouncement() {
               {announcement.isDefault && (
                 <>
                   <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                    That's a wrap for this week — we'll see you next Saturday
-                    for more updates from Team Planetary.
+                    That's the beta21 update. Thanks for testing the faster build.
                   </p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
                     Read the full changelog
@@ -307,15 +316,6 @@ export default function StickyNoteAnnouncement() {
                       className="ml-1 text-primary underline"
                     >
                       here
-                    </a>
-                    . Submit suggestions in
-                    <a
-                      href="https://suggestions.planetaryapp.us"
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="ml-1 text-primary underline"
-                    >
-                      our suggestions website
                     </a>
                     .
                   </p>
