@@ -81,7 +81,27 @@ export async function handler(
 	if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
 	if (!user.roles.length) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-	const groupName = workspace.groupName || 'Unknown Group';
+	let groupName = workspace.groupName;
+	if (!groupName) {
+		const group = await fetch(
+			`https://groups.roblox.com/v1/groups/${workspace.groupId}`,
+		)
+			.then(async (response) =>
+				response.ok ? ((await response.json()) as { name: string }) : null,
+			)
+			.catch(() => null);
+
+		if (group?.name) {
+			groupName = group.name;
+			void prisma.workspace
+				.update({
+					where: { groupId: workspace.groupId },
+					data: { groupName },
+				})
+				.catch((error) => console.error('Failed to refresh workspace group name:', error));
+		}
+	}
+	groupName ||= 'Unknown Group';
 	const groupLogo = workspace.groupLogo || '';
 	const [
 		themeconfig,
