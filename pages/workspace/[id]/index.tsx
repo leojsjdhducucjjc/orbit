@@ -7,7 +7,7 @@ import randomText from "@/utils/randomText"
 import { useRecoilState } from "recoil"
 import { useMemo, useEffect, useState } from "react"
 import { useRouter } from "next/router"
-import { IconPlus, IconLayoutDashboard, IconWall, IconBell, IconUsers, IconArrowRight } from "@tabler/icons-react"
+import { IconLayoutDashboard, IconWall, IconBell, IconUsers, IconArrowRight } from "@tabler/icons-react"
 import { HomeDashboard } from "@/components/home/dashboard"
 import { normalizeHomeWidgetOrder } from "@/utils/homeWidgets"
 
