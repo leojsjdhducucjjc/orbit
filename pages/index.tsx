@@ -230,19 +230,11 @@ const Home: NextPage = () => {
       .catch((err) => {
         console.log(err);
         setLoading(false);
-
-        if (err.response?.data?.error === "You are not a high enough rank") {
-          methods.setError("groupID", {
-            type: "custom",
-            message: "You need to be a rank 10 or higher to create a workspace",
-          });
-        }
-        if (err.response?.data?.error === "Workspace already exists") {
-          methods.setError("groupID", {
-            type: "custom",
-            message: "This group already has a workspace",
-          });
-        }
+        const message =
+          err.response?.data?.error ||
+          "We could not look up that Roblox group. Please try again.";
+        methods.setError("groupID", { type: "custom", message });
+        toast.error(message, { id: t });
       });
 
     if (request) {
@@ -655,8 +647,8 @@ const Home: NextPage = () => {
                               {...methods.register("groupID", {
                                 required: "This field is required",
                                 pattern: {
-                                  value: /^[a-zA-Z0-9-.]*$/,
-                                  message: "No spaces or special characters",
+                                  value: /^\d+$/,
+                                  message: "Enter the numeric Roblox group ID",
                                 },
                                 maxLength: {
                                   value: 10,

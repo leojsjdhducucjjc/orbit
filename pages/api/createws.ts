@@ -51,6 +51,10 @@ export async function handler(
 	}
 	if (typeof groupId !== 'number' || isNaN(groupId)) return res.status(400).json({ success: false, error: 'Invalid groupId' })
 
+	if (!Number.isSafeInteger(groupId) || groupId <= 0) {
+		return res.status(400).json({ success: false, error: 'Invalid groupId' })
+	}
+
 	const tryandfind = await prisma.workspace.findUnique({
 		where: {
 			groupId: groupId
@@ -61,9 +65,26 @@ export async function handler(
 	// Enforce one workspace per owner
 	//const alreadyOwns = await prisma.workspace.findFirst({ where: { ownerId: BigInt(req.auth.userId) } })
 	//if (alreadyOwns) return res.status(403).json({ success: false, error: 'You already own a workspace' })
-	const urrole = await noblox.getRankInGroup(groupId, Number(req.auth.userId)).catch(() => null)
-	if (!urrole) return res.status(400).json({ success: false, error: 'You are not a high enough rank' })
-	if (urrole < 15) return res.status(400).json({ success: false, error: 'You are not a high enough rank' })
+	const [robloxGroup, rankResult] = await Promise.all([
+		noblox.getGroup(groupId).catch(() => null),
+		noblox
+			.getRankInGroup(groupId, Number(req.auth.userId))
+			.then((rank) => ({ rank }))
+			.catch(() => ({ rank: null })),
+	])
+
+	if (!robloxGroup) {
+		return res.status(404).json({ success: false, error: 'Roblox group not found' })
+	}
+	if (rankResult.rank === null) {
+		return res.status(502).json({ success: false, error: 'Could not verify your Roblox group membership. Please try again.' })
+	}
+	if (rankResult.rank === 0) {
+		return res.status(403).json({ success: false, error: 'Your linked Roblox account is not a member of this group' })
+	}
+	if (rankResult.rank < 15) {
+		return res.status(403).json({ success: false, error: 'You need a Roblox group rank of 15 or higher to create a workspace' })
+	}
 
 	await prisma.user.upsert({
 		where: { userid: req.auth.userId },
@@ -71,15 +92,11 @@ export async function handler(
 		create: { userid: req.auth.userId }
 	})
 
-	let groupName = `Group ${groupId}`;
+	let groupName = robloxGroup.name;
 	let groupLogo = '';
 	
 	try {
-		const [logo, group] = await Promise.all([
-			noblox.getLogo(groupId, '420x420').catch(() => ''),
-			noblox.getGroup(groupId).catch(() => null)
-		]);
-		if (group) groupName = group.name;
+		const logo = await noblox.getLogo(groupId, '420x420').catch(() => '');
 		if (logo) groupLogo = logo;
 	} catch (err) {
 		console.error('Failed to fetch group info during workspace creation:', err);
