@@ -65,16 +65,24 @@ export async function handler(
 	// Enforce one workspace per owner
 	//const alreadyOwns = await prisma.workspace.findFirst({ where: { ownerId: BigInt(req.auth.userId) } })
 	//if (alreadyOwns) return res.status(403).json({ success: false, error: 'You already own a workspace' })
-	const [robloxGroup, rankResult] = await Promise.all([
-		noblox.getGroup(groupId).catch(() => null),
+	const [groupLookup, rankResult] = await Promise.all([
+		fetch(`https://groups.roblox.com/v1/groups/${groupId}`)
+			.then(async (response) => ({
+				status: response.status,
+				group: response.ok ? ((await response.json()) as { name: string }) : null,
+			}))
+			.catch(() => ({ status: 0, group: null })),
 		noblox
 			.getRankInGroup(groupId, Number(req.auth.userId))
 			.then((rank) => ({ rank }))
 			.catch(() => ({ rank: null })),
 	])
 
-	if (!robloxGroup) {
+	if (groupLookup.status === 404) {
 		return res.status(404).json({ success: false, error: 'Roblox group not found' })
+	}
+	if (!groupLookup.group) {
+		return res.status(503).json({ success: false, error: 'Roblox could not look up this group right now. Please try again.' })
 	}
 	if (rankResult.rank === null) {
 		return res.status(502).json({ success: false, error: 'Could not verify your Roblox group membership. Please try again.' })
@@ -92,7 +100,7 @@ export async function handler(
 		create: { userid: req.auth.userId }
 	})
 
-	let groupName = robloxGroup.name;
+	let groupName = groupLookup.group.name;
 	let groupLogo = '';
 	
 	try {
